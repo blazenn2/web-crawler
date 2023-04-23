@@ -142,20 +142,64 @@ const result = [
     "Emirates, Emirates Refundable  04:35 PM 20-Apr KHI    Non-Stop 05:50 PM 20-Apr DXB  12:25 PM 25-Apr DXB    Non-Stop 03:35 PM 25-Apr KHI         Rs 901,585 BOOKME 1 Passenger(s)"
 ];
 
-const data = result[32].split("  ").filter(value => value !== "");
+const data = result[122].split("  ").filter(value => value !== "");
 const airwaysInfo = data[0].split(",");
-const timeInfo = data[1].split(" ");
+const startTimeInfo = data[1].split(" ");
 const costInfo = data[data.length - 1].split(' ');
-const test = {
+const firstFlightEndTimeInfo = data[2].split(" ");
+const firstFlightEndTimeInfoLenght = firstFlightEndTimeInfo.length;
+const test1 = {
     airways: airwaysInfo[0],
     price: `${costInfo[1]} ${costInfo[2]}`,
-    startDateAndTime: `${timeInfo[2]} ${timeInfo[0]} ${timeInfo[1]}`,
+    from: startTimeInfo[3],
+    to: firstFlightEndTimeInfo[firstFlightEndTimeInfoLenght - 1],
+    startDateAndTime: `${startTimeInfo[2]} ${startTimeInfo[0]} ${startTimeInfo[1]}`,
+    endDateAndTime: `${firstFlightEndTimeInfo[firstFlightEndTimeInfoLenght - 2]} ${firstFlightEndTimeInfo[firstFlightEndTimeInfoLenght - 4]} ${firstFlightEndTimeInfo[firstFlightEndTimeInfoLenght - 3]}`,
     isTicketRefundable: airwaysInfo[1].split(" ")[airwaysInfo[1].split(" ").length - 1],
 };
+
 if (data[2].split(' ')[0] === "Non-Stop") {
-    test.stops = "Non-Stop";
+    test1.numberOfStops = '0';
 } else {
-    test.stops = data[2].split(' ')[1]
+    test1.numberOfStops = data[2].split(' ')[1];
+    const layoverPlaces = data[2].split(' ')[0];
+    let layoverTime = startTimeInfo.filter((_, i) => i > 3).join('');
+    for (let i = 1; i <= Number(test1.numberOfStops); i++) {
+        const subStringLayoverTime = layoverTime.substring(0, layoverTime.indexOf('M') + 1).split('');
+        subStringLayoverTime.splice(subStringLayoverTime.indexOf('H') + 1, 0, " ");
+        layoverTime = layoverTime.replace(subStringLayoverTime.join(''), "");
+        test1[`stop${i}Location`] = layoverPlaces.split('').splice(((i - 1) * 3), (i * 3)).join('');
+        test1[`stop${i}Layover`] = subStringLayoverTime.join('');
+    }
 }
-// console.log(test);
-console.log(data);
+
+const secondAirwayInfo = airwaysInfo[1].trim().split(" ");
+const secondAirwayStartTimeInfo = data[3].split(" ");
+const endTimeInfo = data[data.length - 2].split(" ");
+const endTimeInfoLenght = endTimeInfo.length;
+const test2 = {
+    airways: secondAirwayInfo.splice(0, secondAirwayInfo.length - 1).join(" "),
+    price: `${costInfo[1]} ${costInfo[2]}`,
+    from: secondAirwayStartTimeInfo[3],
+    to: endTimeInfo[endTimeInfoLenght - 1],
+    startDateAndTime: `${secondAirwayStartTimeInfo[2]} ${secondAirwayStartTimeInfo[0]} ${secondAirwayStartTimeInfo[1]}`,
+    endDateAndTime: `${endTimeInfo[endTimeInfoLenght - 2]} ${endTimeInfo[endTimeInfoLenght - 4]} ${endTimeInfo[endTimeInfoLenght - 3]}`,
+    isTicketRefundable: airwaysInfo[1].split(" ")[airwaysInfo[1].split(" ").length - 1],
+}
+
+if (data[4].split(' ')[0] === "Non-Stop") {
+    test2.numberOfStops = '0';
+} else {
+    test2.numberOfStops = data[4].split(' ')[1];
+    const layoverPlaces = data[4].split(' ')[0];
+    let layoverTime = secondAirwayStartTimeInfo.filter((_, i) => i > 3).join('');
+    for (let i = 1; i <= Number(test2.numberOfStops); i++) {
+        const subStringLayoverTime = layoverTime.substring(0, layoverTime.indexOf('M') + 1).split('');
+        layoverTime = layoverTime.replace(subStringLayoverTime.join(''), "");
+        subStringLayoverTime.splice(subStringLayoverTime.indexOf('H') + 1, 0, " ");
+        test2[`stop${i}Location`] = layoverPlaces.split('').splice(((i - 1) * 3), (i * 3)).join('');
+        test2[`stop${i}Layover`] = subStringLayoverTime.join('');
+    }
+}
+console.log(test1);
+console.log(test2);
