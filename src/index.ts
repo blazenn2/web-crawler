@@ -44,7 +44,7 @@ app.post("/get_tickets", async (req: Request, res: Response) => {
         console.log('Navigation finished');
 
         const flightDom: string[] = await page.$$eval('.flight-item', elements => elements.map(element => element.textContent)) as string[];
-        let airlinesDom: string = await page.$$eval('#toggleAirlines', elements => elements.map(element => element.textContent)[0]?.trim()) as string;
+        let airlinesDom: string = await page.$eval('#toggleAirlines', element => element.textContent?.trim()) as string;
         const airLineObject: any = {};
         if (!airlinesDom) return res.status(200).json({ success: true, message: "No tickets available!" });
         while (airlinesDom.indexOf("(") !== -1) {
