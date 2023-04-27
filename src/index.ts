@@ -1,6 +1,7 @@
 import express, { Request, Response, Express } from 'express';
 import dotenv from 'dotenv';
 import puppeteer, { Browser, Page } from 'puppeteer';
+import { formatAMPM } from './functions'
 
 dotenv.config();
 
@@ -53,7 +54,8 @@ app.post("/get_tickets", async (req: Request, res: Response) => {
             airlinesDom = airlinesDom.replace(airlineStringToDelete, "");
         };
         await page.screenshot({ path: 'ss.png' });
-        const result: any = await page.$$eval('.flight-item', elements => elements.map(element => {
+        await page.exposeFunction("formatAMPM", formatAMPM);
+        const result: any = await page.$$eval('.flight-item', (elements: any) => elements.map((element: any) => {
             // Departure details
 
             // Scrapping airline information
@@ -64,9 +66,11 @@ app.post("/get_tickets", async (req: Request, res: Response) => {
             // Scrapping timing information
             const tripInfo: Element[] = [...element.querySelectorAll(".col-sm-2")];
             const startTripDate: Element[] = [...tripInfo[1].querySelectorAll("small")];
-            const startTripTime: string = tripInfo[1].querySelector("span")?.textContent || "";
+            const tripInfo1SpanElement: Element = tripInfo[1].querySelector("span") as Element;
+            const tripInfo2SpanElement: Element = tripInfo[2].querySelector("span") as Element;
+            const startTripTime: string = tripInfo1SpanElement?.textContent || "";
+            const endTripTime: string = tripInfo2SpanElement?.textContent || "";
             const endTripInfo: Element[] = [...tripInfo[2].querySelectorAll("small")];
-            const endTripTime: string = tripInfo[2].querySelector("span")?.textContent || "";
 
             // Scrapping stops information
             const stopsInfoCard: Element = (element.querySelector(".col-sm-6")) as Element;
@@ -95,16 +99,29 @@ app.post("/get_tickets", async (req: Request, res: Response) => {
                     destinationObject["numberOfStops"] = stopsInfo.split(" ")[0].toString();
                     const stopLocationArray: string[] = stopLocations.map((element: Element) => element.textContent || "");
                     stopLayoverTime.forEach((element: Element, i: number) => {
-                        const afterLayoverTime = (element as HTMLElement)?.title;
+                        const stopDepatureTime = (element as HTMLElement)?.title;
                         const layoverTime: string = element.textContent || "";
                         const stop: string = stopLocationArray[i];
 
-                        const startDateTime: string = tripInfo[1].querySelector("span")?.title || "";
-                        const endDateTime: string = tripInfo[2].querySelector("span")?.title || "";
+                        const stopDepartDateTime: Date = new Date(stopDepatureTime);
+
+                        let totalMinutes: number = 0;
+                        layoverTime.split(" ").forEach((time: string, i: number) => {
+                            const numberTimeArray: string[] = time.split("");
+                            numberTimeArray.pop();
+                            const numberTime: number = Number(numberTimeArray.join(""));
+                            if (i === 0) return totalMinutes += (numberTime * 60);
+                            else return totalMinutes += numberTime;
+                        });
+                        const newDate: Date = new Date(stopDepartDateTime.getTime() - (totalMinutes * 60000));
+                        const stopDepartureTime: string = formatAMPM(newDate);
+                        const stopDepatureDate: string = `${newDate.getDate()}-${newDate.toLocaleString('default', { month: 'long' })}`;
 
                         destinationObject[`stopNo${i + 1}`] = stop;
+                        destinationObject[`${stop}ArivalDate`] = stopDepatureDate;
+                        destinationObject[`${stop}ArivalTime`] = stopDepartureTime;
                         destinationObject[`${stop}LayoverTime`] = layoverTime;
-                        destinationObject[`${stop}LeaveTime`] = afterLayoverTime;
+                        destinationObject[`${stop}DepatureDateTime`] = stopDepatureTime;
                     });
                 };
             };
@@ -115,7 +132,7 @@ app.post("/get_tickets", async (req: Request, res: Response) => {
             // tripObject.fromLocation = [...tripTimeAndStopInfo[0].querySelectorAll("small")][1].textContent || "";
             // return tripTimeAndStopInfo
 
-        })) as any;
+        }, formatAMPM)) as any;
         console.log("Data scrapped successfully!");
 
         // const cleanedDataArray: string[][] = (flightDom.map(element => element.split("  ").filter(value => value !== "")));
