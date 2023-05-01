@@ -13,10 +13,10 @@ let page: Page;
 
 app.use(express.json());
 
-app.post("/get_tickets", async (req: Request, res: Response) => {
+app.post("/get-round-trip-tickets", async (req: Request, res: Response) => {
     try {
-        const { from, to, depDate, returnDate } = req.body;
-        console.log("/get_page API called! Method: POST");
+        const { from, to, depDate, returnDate, adults, kids, infants } = req.body;
+        console.log("/get-round-trip-tickets API called! Method: POST");
         browser = await puppeteer.launch();
         console.log("Browser launched successfully!");
         page = await browser.newPage();
@@ -29,19 +29,48 @@ app.post("/get_tickets", async (req: Request, res: Response) => {
 
         await page.type('input[name="dep_date"]', depDate);
         await page.type('input[name="return_date"]', returnDate);
-        await page.evaluate(() => {
-            const buttons = document.querySelectorAll('button');
+
+        await page.evaluate((data) => {
+            const numberOfAdultsInput: HTMLInputElement = [...document.getElementsByName('no_of_adults')][0] as HTMLInputElement;
+            if (numberOfAdultsInput) numberOfAdultsInput.value = data.adults.toString();
+
+            const numberOfChildrenInput: HTMLInputElement = [...document.getElementsByName('no_of_children')][0] as HTMLInputElement;
+            if (numberOfChildrenInput) numberOfChildrenInput.value = data.kids.toString();
+
+            const numberOfInfantsInput: HTMLInputElement = [...document.getElementsByName('no_of_infants')][0] as HTMLInputElement;
+            if (numberOfInfantsInput) numberOfInfantsInput.value = data.infants.toString();
+
+
+            const premiumEconomy: HTMLInputElement = document.getElementById("checkbox-PremiumEconomy") as HTMLInputElement;
+            const business: HTMLInputElement = document.getElementById("checkbox-Business") as HTMLInputElement;
+            const economy: HTMLInputElement = document.getElementById("checkbox-Economy") as HTMLInputElement;
+
+            if (data.typeOfFlight === "1") {
+                if (premiumEconomy) premiumEconomy.checked = true;
+                if (business) business.checked = false;
+                if (economy) economy.checked = false;
+            } else if (data.typeOfFlight === "2") {
+                if (business) business.checked = true;
+                if (premiumEconomy) premiumEconomy.checked = false;
+                if (economy) economy.checked = false;
+            }
+
+            const datesFlexible: HTMLInputElement = document.getElementById("flexible_dates") as HTMLInputElement;
+            if (data.areDatesFlexible) datesFlexible.checked = true;
+
+            const buttons: Element[] = [...document.querySelectorAll('button')];
             buttons.forEach((button: any) => {
                 if (button.textContent.includes('BOOKME')) {
                     button.click();
                     return;
                 }
             });
-        });
+        }, req.body);
         console.log("Submit button clicked!");
 
         await page.waitForNavigation({ waitUntil: 'networkidle0', timeout: 0 });
         console.log('Navigation finished');
+        await page.screenshot({ path: 'ss.png' });
 
         let airlinesDom: string = await page.$eval('#toggleAirlines', element => element.textContent?.trim()) as string;
         const airLineObject: any = {};
@@ -52,8 +81,9 @@ app.post("/get_tickets", async (req: Request, res: Response) => {
             airLineObject[`${extractedAirline}`] = [];
             airlinesDom = airlinesDom.replace(airlineStringToDelete, "");
         };
-        await page.screenshot({ path: 'ss.png' });
-        const result: any = await page.$$eval('.flight-item', (elements: any) => {
+        const resultCount = await page.$eval('.text-sm-left', (element: Element) => element.querySelector("span")?.textContent);
+        // const currentPageURL = await page.evaluate("", () => window.location.href);
+        const result: any = await page.$$eval('.flight-item', (elements: Element[]) => {
             function formatAMPM(date: Date) {
                 let hours: number | string = date.getHours();
                 let minutes: number | string = date.getMinutes();
@@ -65,7 +95,7 @@ app.post("/get_tickets", async (req: Request, res: Response) => {
                 return strTime;
             }
 
-            return elements.map((element: any) => {
+            return elements.map((element: Element) => {
                 // Departure details
 
                 // Scrapping airline information
@@ -100,7 +130,6 @@ app.post("/get_tickets", async (req: Request, res: Response) => {
                     startTime: startTripTime,
                     endDate: endTripInfo[0].textContent || "",
                     endTime: endTripTime,
-                    isRefundable: isRefundable
                 };
 
                 // Destination Trip Stops Logic
@@ -152,7 +181,7 @@ app.post("/get_tickets", async (req: Request, res: Response) => {
                 const returnTripEndInfo: Element[] = [...tripInfo[tripInfo.length - 1].querySelectorAll("small")];
 
                 // Scrapping stops information
-                const returnStopsInfoCard: Element[] = (element.querySelectorAll(".col-sm-6")) as Element[];
+                const returnStopsInfoCard: Element[] = ([...element.querySelectorAll(".col-sm-6")]) as Element[];
                 const returnStopsInfo: string = returnStopsInfoCard[returnStopsInfoCard.length - 1]?.querySelector(".text-primary")?.textContent || "";
 
                 const cardUpperContent: Element = (returnStopsInfoCard[returnStopsInfoCard.length - 1]?.querySelector(".upper-content")) as Element;
@@ -204,15 +233,15 @@ app.post("/get_tickets", async (req: Request, res: Response) => {
                             returnObject[`${stop}DepatureDate`] = stopDepartureDate;
                             returnObject[`${stop}DepatureTime`] = stopDepartureTime;
                         });
-                    }
-                }
+                    };
+                };
 
-                return { startTripData: destinationObject, returnTripData: returnObject };
+                return { isRefundable: isRefundable, startTripData: destinationObject, returnTripData: returnObject };
             })
         }) as any;
         console.log("Data scrapped successfully!");
 
-        return res.status(200).json({ success: true, tripType: "Round Trip", totalAirlines: result, dom: result });
+        return res.status(200).json({ success: true, tripType: "Round Trip", passengersInformation: { numberOfPassengers: `${Number(adults) + Number(kids) + Number(infants)}`, adultsCount: adults, kidsCount: kids, infantsCount: infants }, totalResult: resultCount, ticketsInformation: result });
     } catch (err: any) {
         console.log(err);
         res.status(400).json({ success: false, message: err.message });
