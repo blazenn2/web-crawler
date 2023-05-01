@@ -70,7 +70,7 @@ app.post("/get-round-trip-tickets", async (req: Request, res: Response) => {
 
         await page.waitForNavigation({ waitUntil: 'networkidle0', timeout: 0 });
         console.log('Navigation finished');
-        await page.screenshot({ path: 'ss.png' });
+        // await page.screenshot({ path: 'ss.png' });
 
         let airlinesDom: string = await page.$eval('#toggleAirlines', element => element.textContent?.trim()) as string;
         const airLineObject: any = {};
