@@ -13,10 +13,10 @@ let page: Page;
 
 app.use(express.json());
 
-app.post("/get-round-trip-tickets", async (req: Request, res: Response) => {
+app.post("/get-airline-tickets", async (req: Request, res: Response) => {
     try {
-        const { from, to, depDate, returnDate, adults, kids, infants } = req.body;
-        console.log("/get-round-trip-tickets API called! Method: POST");
+        const { from, to, depDate, returnDate, adults, kids, infants, typeOfFlight, areDatesFlexible } = req.body;
+        console.log("/get-airline-tickets API called! Method: POST");
         browser = await puppeteer.launch();
         console.log("Browser launched successfully!");
         page = await browser.newPage();
@@ -28,35 +28,56 @@ app.post("/get-round-trip-tickets", async (req: Request, res: Response) => {
         await page.type('input[name="to"]', to);
 
         await page.type('input[name="dep_date"]', depDate);
-        await page.type('input[name="return_date"]', returnDate);
+        if (typeOfFlight.flightType === "1") await page.type('input[name="return_date"]', returnDate);
 
         await page.evaluate((data) => {
+            const { adults, kids, infants, typeOfFlight, areDatesFlexible } = data;
+            const { flightClass, flightType } = typeOfFlight;
+
+            const roundTrip: HTMLInputElement = document.getElementById("oneway") as HTMLInputElement;
+            const oneWay: HTMLInputElement = document.getElementById("oneway") as HTMLInputElement;
+            const multiCity: HTMLInputElement = document.getElementById("multicity") as HTMLInputElement;
+
+            if (flightType === "0") {
+                roundTrip.checked = false;
+                multiCity.checked = false;
+                oneWay.checked = true;
+            } else if (flightType === "2") {
+                roundTrip.checked = false;
+                multiCity.checked = true;
+                oneWay.checked = false;
+            } else if (flightType === "1") {
+                roundTrip.checked = true;
+                multiCity.checked = false;
+                oneWay.checked = false;
+            }
+
             const numberOfAdultsInput: HTMLInputElement = [...document.getElementsByName('no_of_adults')][0] as HTMLInputElement;
-            if (numberOfAdultsInput) numberOfAdultsInput.value = data.adults.toString();
+            if (numberOfAdultsInput) numberOfAdultsInput.value = adults.toString();
 
             const numberOfChildrenInput: HTMLInputElement = [...document.getElementsByName('no_of_children')][0] as HTMLInputElement;
-            if (numberOfChildrenInput) numberOfChildrenInput.value = data.kids.toString();
+            if (numberOfChildrenInput) numberOfChildrenInput.value = kids.toString();
 
             const numberOfInfantsInput: HTMLInputElement = [...document.getElementsByName('no_of_infants')][0] as HTMLInputElement;
-            if (numberOfInfantsInput) numberOfInfantsInput.value = data.infants.toString();
+            if (numberOfInfantsInput) numberOfInfantsInput.value = infants.toString();
 
 
             const premiumEconomy: HTMLInputElement = document.getElementById("checkbox-PremiumEconomy") as HTMLInputElement;
             const business: HTMLInputElement = document.getElementById("checkbox-Business") as HTMLInputElement;
             const economy: HTMLInputElement = document.getElementById("checkbox-Economy") as HTMLInputElement;
 
-            if (data.typeOfFlight === "1") {
+            if (flightClass === "1") {
                 if (premiumEconomy) premiumEconomy.checked = true;
                 if (business) business.checked = false;
                 if (economy) economy.checked = false;
-            } else if (data.typeOfFlight === "2") {
+            } else if (flightClass === "2") {
                 if (business) business.checked = true;
                 if (premiumEconomy) premiumEconomy.checked = false;
                 if (economy) economy.checked = false;
             }
 
             const datesFlexible: HTMLInputElement = document.getElementById("flexible_dates") as HTMLInputElement;
-            if (data.areDatesFlexible) datesFlexible.checked = true;
+            if (areDatesFlexible) datesFlexible.checked = true;
 
             const buttons: Element[] = [...document.querySelectorAll('button')];
             buttons.forEach((button: any) => {
@@ -70,7 +91,6 @@ app.post("/get-round-trip-tickets", async (req: Request, res: Response) => {
 
         await page.waitForNavigation({ waitUntil: 'networkidle0', timeout: 0 });
         console.log('Navigation finished');
-        // await page.screenshot({ path: 'ss.png' });
 
         let airlinesDom: string = await page.$eval('#toggleAirlines', element => element.textContent?.trim()) as string;
         const airLineObject: any = {};
@@ -241,7 +261,10 @@ app.post("/get-round-trip-tickets", async (req: Request, res: Response) => {
         }) as any;
         console.log("Data scrapped successfully!");
 
-        return res.status(200).json({ success: true, tripType: "Round Trip", passengersInformation: { numberOfPassengers: `${Number(adults) + Number(kids) + Number(infants)}`, adultsCount: adults, kidsCount: kids, infantsCount: infants }, totalResult: resultCount, ticketsInformation: result });
+        const typeOfTrip = typeOfFlight.flightType === "0" ? "One Way" : typeOfFlight.flightType === "1" ? "Round Trip" : "Multi City";
+        const flightClass = typeOfFlight.flightClass === "0" ? "Economy" : typeOfFlight.flightClass === "2" ? "Premium Economy" : "Business";
+
+        return res.status(200).json({ success: true, tripType: typeOfTrip, tripClass: flightClass, areDatesFlexible: areDatesFlexible, passengersInformation: { numberOfPassengers: `${Number(adults) + Number(kids) + Number(infants)}`, adultsCount: adults, kidsCount: kids, infantsCount: infants }, totalResult: resultCount, ticketsInformation: result });
     } catch (err: any) {
         console.log(err);
         res.status(400).json({ success: false, message: err.message });
