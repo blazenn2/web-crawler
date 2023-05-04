@@ -24,33 +24,27 @@ app.post("/get-airline-tickets", async (req: Request, res: Response) => {
         await page.goto(website, { timeout: 0 });
         console.log(`Directed to ${website}`);
 
+        let flightType: string = "";
+        if (typeOfFlight.flightType === "1") flightType = 'label[for="oneway"]';
+        if (typeOfFlight.flightType === "0") flightType = 'label[for="roundtrip"]';
+        if (typeOfFlight.flightType === "2") flightType = 'label[for="multicity"]';
+
+        if (flightType) await page.$eval(flightType, (element) => {
+            const inputElement = element as HTMLInputElement;
+            if (inputElement) inputElement.click();
+        });
+        
+
         await page.type('input[name="from"]', from);
         await page.type('input[name="to"]', to);
+
 
         await page.type('input[name="dep_date"]', depDate);
         if (typeOfFlight.flightType === "1") await page.type('input[name="return_date"]', returnDate);
 
         await page.evaluate((data) => {
             const { adults, kids, infants, typeOfFlight, areDatesFlexible } = data;
-            const { flightClass, flightType } = typeOfFlight;
-
-            const roundTrip: HTMLInputElement = document.getElementById("oneway") as HTMLInputElement;
-            const oneWay: HTMLInputElement = document.getElementById("oneway") as HTMLInputElement;
-            const multiCity: HTMLInputElement = document.getElementById("multicity") as HTMLInputElement;
-
-            if (flightType === "0") {
-                roundTrip.checked = false;
-                multiCity.checked = false;
-                oneWay.checked = true;
-            } else if (flightType === "2") {
-                roundTrip.checked = false;
-                multiCity.checked = true;
-                oneWay.checked = false;
-            } else if (flightType === "1") {
-                roundTrip.checked = true;
-                multiCity.checked = false;
-                oneWay.checked = false;
-            }
+            const { flightClass } = typeOfFlight;
 
             const numberOfAdultsInput: HTMLInputElement = [...document.getElementsByName('no_of_adults')][0] as HTMLInputElement;
             if (numberOfAdultsInput) numberOfAdultsInput.value = adults.toString();
@@ -87,10 +81,15 @@ app.post("/get-airline-tickets", async (req: Request, res: Response) => {
                 }
             });
         }, req.body);
+        await page.screenshot({ path: './ss.png' });
+
         console.log("Submit button clicked!");
+        
 
         await page.waitForNavigation({ waitUntil: 'networkidle0', timeout: 0 });
         console.log('Navigation finished');
+        await page.screenshot({ path: './ss.png' });
+
 
         let airlinesDom: string = await page.$eval('#toggleAirlines', element => element.textContent?.trim()) as string;
         const airLineObject: any = {};
